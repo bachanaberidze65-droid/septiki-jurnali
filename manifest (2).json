@@ -1,0 +1,33 @@
+{
+  "name": "საწარმოო ჟურნალი — სეპტიკები",
+  "short_name": "სეპტიკები",
+  "description": "შპს გზა — პოლიეთილენის სეპტიკებისა და მრიცხველის ყუთების საწარმოო/დისპეჩერიზაციის ჟურნალი",
+  "start_url": "./septiki-jurnali.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b1420",
+  "theme_color": "#0b1420",
+  "lang": "ka",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
