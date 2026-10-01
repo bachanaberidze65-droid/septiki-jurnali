@@ -387,6 +387,49 @@
     font-size:11px; color:var(--text-1); cursor:pointer; white-space:nowrap;
   }
   .role-pill:hover{border-color:var(--accent); color:var(--text-0);}
+
+  /* ===== PAYROLL / ხელფასები ===== */
+  .pr-month{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0 12px;}
+  .pr-month .lbl{font-family:var(--display); font-weight:700; font-size:15px; text-align:center;}
+  .pr-wrap{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.pr{width:100%; border-collapse:collapse; font-size:12px; min-width:480px;}
+  table.pr th, table.pr td{padding:7px 8px; border-bottom:1px solid var(--border); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  table.pr th{font-family:var(--mono); font-size:10px; color:var(--text-2); font-weight:600; text-transform:uppercase; letter-spacing:.3px;}
+  table.pr th.l, table.pr td.l{text-align:left;}
+  table.pr tr.tot td{font-weight:700; border-top:2px solid var(--border); background:rgba(63,143,217,.08);}
+  table.pr tr.muted td{color:var(--text-2);}
+  table.pr td.strong{font-weight:700; color:var(--ok);}
+  .pr-title{font-family:var(--display); font-weight:700; font-size:13.5px; margin-bottom:10px;}
+  .pr-warn{background:rgba(226,161,61,.12); border:1px solid rgba(226,161,61,.4); color:var(--warn); border-radius:10px; padding:10px 12px; font-size:12px; line-height:1.5; margin-bottom:12px;}
+  .pr-sign{display:flex; flex-wrap:wrap; gap:24px; margin-top:22px; font-size:12.5px;}
+  .pr-note{font-size:11.5px; color:var(--text-2); margin-top:8px; line-height:1.5;}
+  .wk-chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .wk-preview{margin-top:10px; font-family:var(--mono); font-size:11.5px; color:var(--text-1); line-height:1.5;}
+  .mini{font-family:var(--mono); font-size:9.5px; color:var(--text-2); text-transform:uppercase; margin-bottom:3px;}
+  .pr-emp{padding:10px 0; border-bottom:1px solid var(--border);}
+  .pr-emp:last-child{border-bottom:none;}
+  .pr-emp .r1{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .pr-emp .r1 input{flex:1;}
+  .pr-emp .r2{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; align-items:end;}
+  .print-only{display:none;}
+  @page{ size:A4 landscape; margin:10mm; }
+  @media print{
+    body{background:#fff !important; color:#000 !important; padding:0 !important; min-height:0 !important;}
+    header.topbar, .desktop-tabs, nav.bottomnav, #toast, #offlineBanner, #roleGate, .no-print{display:none !important;}
+    main{max-width:none !important; padding:0 !important;}
+    .view{display:none !important;}
+    #view-payroll{display:block !important;}
+    #view-payroll *{color:#000 !important; background:transparent !important; box-shadow:none !important;}
+    #view-payroll .card{border:none !important; padding:0 !important; margin:0 0 10px !important;}
+    .pr-wrap{overflow:visible !important;}
+    table.pr{min-width:0 !important; font-size:10.5px;}
+    table.pr th, table.pr td{border:1px solid #444 !important; padding:3px 5px !important;}
+    table.pr tr.tot td{font-weight:700;}
+    .pr-title{font-size:13px;}
+    .pr-break{page-break-before:always;}
+    .pr-sign{margin-top:28px;}
+    .print-only{display:block !important;}
+  }
 </style>
 </head>
 <body>
@@ -433,6 +476,7 @@
     <button data-view="home" class="active" onclick="showView('home')">მთავარი</button>
     <button data-view="entry" onclick="showView('entry')">შეყვანა</button>
     <button data-view="history" onclick="showView('history')">ისტორია</button>
+    <button data-view="payroll" onclick="showView('payroll')">ხელფასები</button>
     <button data-view="settings" onclick="showView('settings')">პარამეტრები</button>
   </div>
 
@@ -592,13 +636,13 @@
         </div>
         <div class="field">
           <label>პროდუქცია</label>
-          <select id="fProduct"></select>
+          <select id="fProduct" onchange="wkRefresh('f')"></select>
         </div>
         <div class="field">
           <label>რაოდენობა (ცალი)</label>
           <div class="qty-stepper">
             <button type="button" onclick="stepQty(-1)">−</button>
-            <input type="number" id="fQty" value="1" min="1" inputmode="numeric">
+            <input type="number" id="fQty" value="1" min="1" inputmode="numeric" oninput="wkRefresh('f')">
             <button type="button" onclick="stepQty(1)">+</button>
           </div>
         </div>
@@ -607,6 +651,13 @@
           <div class="field">
             <label>ჯგუფი / ბრიგადა (არჩევითი)</label>
             <select id="fGroup"></select>
+          </div>
+          <div id="workersBlock" style="display:none;">
+            <div class="field">
+              <label>ვინ მუშაობდა დღეს <span id="wkCount"></span></label>
+              <div class="wk-chips" id="wkChips"></div>
+              <div class="wk-preview" id="wkPreview"></div>
+            </div>
           </div>
         </div>
 
@@ -732,11 +783,18 @@
           <label>მასალის შემოსავლის დამატება</label>
           <select id="matIncomeSelect" style="margin-bottom:8px;"></select>
         </div>
-        <div class="row2">
-          <input type="number" id="matIncomeQty" placeholder="რაოდენობა (კგ)" min="0">
-          <input type="text" id="matIncomeNote" placeholder="შენიშვნა (არჩ.)">
+        <div class="row2" style="margin-bottom:10px;">
+          <input type="date" id="matIncomeDate">
+          <input type="number" id="matIncomeQty" placeholder="რაოდენობა (კგ)" min="0" step="any">
         </div>
+        <input type="text" id="matIncomeNote" placeholder="შენიშვნა (არჩ.) — მაგ. მომწოდებელი, ზედნადები" style="margin-bottom:0;">
         <button class="btn primary" style="margin-top:10px;" onclick="addMaterialIncome()">+ შემოსავლის დამატება</button>
+      </div>
+
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--border);">
+        <div class="field" style="margin-bottom:8px;"><label>შემოსავლების ისტორია</label></div>
+        <div id="matIncomeSummary" style="font-family:var(--mono); font-size:11.5px; color:var(--text-1); margin-bottom:8px;"></div>
+        <div id="matIncomeHistory"></div>
       </div>
     </div>
 
@@ -755,6 +813,21 @@
     <div class="card">
       <div id="peopleList"></div>
       <button class="btn ghost" style="margin-top:12px;" onclick="addPerson()">+ თანამშრომლის დამატება</button>
+    </div>
+
+    <div class="section-title"><h2>ხელფასები — პარამეტრები</h2><span class="hint">ანაზღაურება და თანამშრომლები</span></div>
+    <div class="card">
+      <div class="field"><label>ანაზღაურება ერთ ცალზე (სუფთა თანხა, ₾)</label><div id="prRateList"></div></div>
+      <div class="row2">
+        <div class="field"><label>საშემოსავლო (%)</label><input type="number" id="prTax" min="0" max="59" step="0.1" onchange="setPayrollTax(this.value)"></div>
+        <div></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>წარმოების უფროსი (ხელმოწერა)</label><input type="text" id="prSignBoss" onchange="setPayrollSigner('boss', this.value)"></div>
+        <div class="field"><label>ზედამხედველი (ხელმოწერა)</label><input type="text" id="prSignSup" onchange="setPayrollSigner('supervisor', this.value)"></div>
+      </div>
+      <div class="field" style="margin-top:6px;"><label>თანამშრომლები — სუფთა ხელფასი და პრემია</label><div id="prEmpList"></div></div>
+      <button class="btn ghost" onclick="addPayrollEmployee()">+ თანამშრომლის დამატება</button>
     </div>
 
     <div class="section-title"><h2>კლიენტები (შპს-ები)</h2><span class="hint">გაცემისას ავტომატურად შემოთავაზდება</span></div>
@@ -814,12 +887,25 @@
       <button class="btn ghost" onclick="openModal('syncModal')">Firebase-ის დაკავშირება</button>
     </div>
   </section>
+  <!-- ============ PAYROLL ============ -->
+  <section class="view" id="view-payroll">
+    <div class="pr-month">
+      <button class="btn ghost btn-pill no-print" onclick="shiftPayrollMonth(-1)">← წინა</button>
+      <div style="text-align:center;">
+        <div class="lbl" id="prMonthLabel"></div>
+        <div id="prClosedBadge" style="margin-top:4px;"></div>
+      </div>
+      <button class="btn ghost btn-pill no-print" onclick="shiftPayrollMonth(1)">შემდეგი →</button>
+    </div>
+    <div id="prBody"></div>
+  </section>
 </main>
 
 <nav class="bottomnav">
   <button data-view="home" class="active" onclick="showView('home')"><span class="ic">🏠</span>მთავარი</button>
   <button data-view="entry" onclick="showView('entry')"><span class="ic">➕</span>შეყვანა</button>
   <button data-view="history" onclick="showView('history')"><span class="ic">📋</span>ისტორია</button>
+  <button data-view="payroll" onclick="showView('payroll')"><span class="ic">💰</span>ხელფასები</button>
   <button data-view="settings" onclick="showView('settings')"><span class="ic">⚙️</span>პარამეტრები</button>
 </nav>
 
@@ -837,17 +923,24 @@
     </div>
     <div class="field">
       <label>პროდუქცია</label>
-      <select id="eProduct"></select>
+      <select id="eProduct" onchange="wkRefresh('e')"></select>
     </div>
     <div class="field">
       <label>რაოდენობა</label>
-      <input type="number" id="eQty" min="1">
+      <input type="number" id="eQty" min="1" oninput="wkRefresh('e')">
     </div>
 
     <div id="eProductionFields">
       <div class="field">
         <label>ჯგუფი / ბრიგადა</label>
         <select id="eGroup"></select>
+      </div>
+      <div id="eWkBlock" style="display:none;">
+        <div class="field">
+          <label>ვინ მუშაობდა <span id="eWkCount"></span></label>
+          <div class="wk-chips" id="eWkChips"></div>
+          <div class="wk-preview" id="eWkPreview"></div>
+        </div>
       </div>
     </div>
 
@@ -923,11 +1016,11 @@ const DEFAULT_PINS = {production:'111111', dispatch:'222222', security:'333333',
 
 // what each role is allowed to do
 const PERMS = {
-  production: {tabs:['home','entry','history'],   entryModes:['production','defect'], deleteEntries:false, settings:false, historyTypes:['production','defect'], confirmDispatch:false},
-  dispatch:   {tabs:['home','entry','history'],   entryModes:['dispatch'],   deleteEntries:false, settings:false, historyTypes:['dispatch'], confirmDispatch:false},
+  production: {tabs:['home','entry','history','payroll'],   entryModes:['production','defect'], deleteEntries:false, settings:false, historyTypes:['production','defect'], confirmDispatch:false},
+  dispatch:   {tabs:['home','entry','history','payroll'],   entryModes:['dispatch'],   deleteEntries:false, settings:false, historyTypes:['dispatch'], confirmDispatch:false},
   security:   {tabs:['home','history'],           entryModes:[],             deleteEntries:false, settings:false, historyTypes:['dispatch'], confirmDispatch:true},
-  director:   {tabs:['home','history'],           entryModes:[],             deleteEntries:false, settings:false, historyTypes:['production','dispatch','defect'], confirmDispatch:false},
-  admin:      {tabs:['home','entry','history','settings'], entryModes:['production','dispatch','defect','order'], deleteEntries:true, settings:true, historyTypes:['production','dispatch','defect'], confirmDispatch:true},
+  director:   {tabs:['home','history','payroll'],           entryModes:[],             deleteEntries:false, settings:false, historyTypes:['production','dispatch','defect'], confirmDispatch:false},
+  admin:      {tabs:['home','entry','history','payroll','settings'], entryModes:['production','dispatch','defect','order'], deleteEntries:true, settings:true, historyTypes:['production','dispatch','defect'], confirmDispatch:true},
   completed:  {tabs:['home'],                     entryModes:[],             deleteEntries:false, settings:false, historyTypes:['dispatch'], confirmDispatch:false},
 };
 
@@ -1253,6 +1346,8 @@ function saveState(silent, forceOverwrite){
   // Grab (and clear) whatever operations this device has queued up since
   // its last successful save — these are the ONLY changes we will apply.
   const myOps = pendingOps;
+  const myPayroll = payrollPending;
+  payrollPending = null;
   pendingOps = {entries: [], units: [], orders: [], weeklyAllocations: [], schedules: [], weeklyPlans: [], drivers: []};
 
   // Every save is chained after the previous one so writes always land in
@@ -1285,9 +1380,11 @@ function saveState(silent, forceOverwrite){
       // is normally edited by one admin at a time, so this device's copy of
       // it (which already includes whatever it just changed) is written as-is,
       // layered on top of the freshest server snapshot for any fields it never touched.
+      const newPayroll = myPayroll ? myPayroll : (remote.payroll || state.payroll);
+      const payrollPart = newPayroll ? {payroll: newPayroll} : {};
       const toWrite = Object.assign({}, remote, state, {
         entries: newEntries, units: newUnits, orders: newOrders, weeklyAllocations: newAllocs, schedules: newSchedules, weeklyPlans: newPlans, drivers: newDrivers
-      });
+      }, payrollPart);
 
       state.entries = newEntries;
       state.units = newUnits;
@@ -1296,6 +1393,7 @@ function saveState(silent, forceOverwrite){
       state.schedules = newSchedules;
       state.weeklyPlans = newPlans;
       state.drivers = newDrivers;
+      if(newPayroll) state.payroll = newPayroll;
       localStorage.setItem(LS_KEY, JSON.stringify(state));
       return db.ref('septikiData').set(toWrite);
     }).catch(e=>{
@@ -1318,9 +1416,12 @@ function showView(name){
   if(name==='home') renderHome();
   if(name==='history') renderHistory();
   if(name==='settings') renderSettings();
+  if(name==='payroll') renderPayroll();
   if(name==='entry'){
     document.getElementById('fDate').value = todayStr();
     renderProductOptions();
+    wkInitSelection();
+    wkRefresh('f');
     renderOrderQueue();
     renderAdminOrdersPreview();
   }
@@ -1745,7 +1846,8 @@ function entryRowHtml(e){
     sub = [e.date, e.reason].filter(Boolean).join(' · ');
   } else {
     const g = e.groupId ? state.groups.find(x=>x.id===e.groupId) : null;
-    sub = [e.date, g ? g.name : null, serialText].filter(Boolean).join(' · ');
+    const wkTxt = (Array.isArray(e.workerIds) && e.workerIds.length) ? '👷 ' + e.workerIds.length : null;
+    sub = [e.date, g ? g.name : null, wkTxt, serialText].filter(Boolean).join(' · ');
   }
   const canDelete = PERMS[currentRole] && PERMS[currentRole].deleteEntries;
   const canConfirm = PERMS[currentRole] && PERMS[currentRole].confirmDispatch;
@@ -2232,12 +2334,14 @@ function setEntryMode(mode){
   const btnClass = mode==='production' ? 'production' : (mode==='defect' ? 'defect' : (mode==='order' ? 'order' : 'primary'));
   document.getElementById('saveBtn').className = 'btn ' + btnClass;
   document.getElementById('saveBtn').textContent = mode==='production' ? 'წარმოების შენახვა' : (mode==='defect' ? 'დეფექტურის შენახვა' : (mode==='order' ? 'შეკვეთის დამატება' : 'გაცემის შენახვა'));
+  wkRefresh('f');
 }
 
 function stepQty(delta){
   const el = document.getElementById('fQty');
   const v = Math.max(1, (parseInt(el.value)||1) + delta);
   el.value = v;
+  wkRefresh('f');
 }
 
 function saveEntry(){
@@ -2248,6 +2352,7 @@ function saveEntry(){
 
   if(!productId){ toast('აირჩიეთ პროდუქცია'); return; }
   if(qty <= 0){ toast('შეიყვანეთ სწორი რაოდენობა'); return; }
+  if(entryMode === 'production' && isMonthClosed(date)){ toast('ეს თვე დახურულია — წარმოების დამატება შეუძლებელია'); return; }
 
   if(entryMode === 'order'){
     const client = document.getElementById('fClient').value.trim();
@@ -2292,6 +2397,14 @@ function saveEntry(){
   } else {
     const gEl = document.getElementById('fGroup');
     entry.groupId = gEl ? gEl.value : '';
+    if(entryMode === 'production'){
+      const prate = payrollRate(productId);
+      if(prate > 0 && payrollActiveEmployees().length > 0){
+        if(wkSel.length === 0){ toast('მონიშნეთ ვინ მუშაობდა'); return; }
+        entry.workerIds = wkSel.slice();
+        entry.rate = prate;
+      }
+    }
     if(entryMode === 'defect'){
       const reasonEl = document.getElementById('fDefectReason');
       entry.reason = reasonEl ? reasonEl.value.trim() : '';
@@ -2300,6 +2413,7 @@ function saveEntry(){
 
   state.entries.push(entry);
   queueOp('entries', {type:'upsert', item: entry});
+  if(entry.workerIds){ try{ localStorage.setItem(PR_LAST_WORKERS_KEY, JSON.stringify(entry.workerIds)); }catch(_){} }
   if(entryMode === 'production' || entryMode === 'defect'){
     const product = state.products.find(p=>p.id===productId);
     if(product && product.materialId && product.materialPerUnit > 0){
@@ -2464,6 +2578,8 @@ function requestDelete(id){
   doDelete(id);
 }
 function doDelete(id){
+  const delEntry = state.entries.find(x=>x.id===id);
+  if(delEntry && delEntry.type === 'production' && isMonthClosed(delEntry.date)){ toast('ეს თვე დახურულია — ჯერ გახსენით ხელფასების გვერდზე'); return; }
   if(!confirm('წავშალოთ ეს ჩანაწერი?')) return;
   queueOp('entries', {type:'remove', id});
   state.units.filter(u=>u.dispatchEntryId===id).forEach(u=>queueOp('units', {type:'remove', id: u.id}));
@@ -2524,6 +2640,9 @@ function openEditEntry(id){
     document.getElementById('eSerials').value = unitSerialsForEntry(e.id).join(', ');
   }
 
+  eWkSel = (e.type === 'production' && Array.isArray(e.workerIds)) ? e.workerIds.slice() : [];
+  wkRefresh('e');
+
   openModal('editModal');
 }
 
@@ -2531,9 +2650,13 @@ function saveEditEntry(){
   const e = state.entries.find(x=>x.id===editingEntryId);
   if(!e) return;
 
+  const oldProductId = e.productId;
   const newProductId = document.getElementById('eProduct').value;
   const newQty = parseInt(document.getElementById('eQty').value) || 0;
   if(newQty <= 0){ toast('შეიყვანეთ სწორი რაოდენობა'); return; }
+  if(e.type === 'production' && (isMonthClosed(e.date) || isMonthClosed(document.getElementById('eDate').value))){
+    toast('ეს თვე დახურულია — ჯერ გახსენით ხელფასების გვერდზე'); return;
+  }
 
   e.date = document.getElementById('eDate').value || e.date;
   e.productId = newProductId;
@@ -2542,6 +2665,14 @@ function saveEditEntry(){
 
   if(e.type === 'production'){
     e.groupId = document.getElementById('eGroup').value;
+    const wkVisible = document.getElementById('eWkBlock').style.display !== 'none';
+    if(wkVisible){
+      e.workerIds = eWkSel.slice();
+      if(!(Number(e.rate) > 0) || oldProductId !== newProductId) e.rate = payrollRate(newProductId);
+    } else if(oldProductId !== newProductId){
+      e.workerIds = [];
+      e.rate = 0;
+    }
   } else if(e.type === 'defect'){
     e.reason = document.getElementById('eDefectReason').value.trim();
   } else if(e.type === 'dispatch'){
@@ -2596,6 +2727,7 @@ function renderSettings(){
   renderRolePinList();
   renderGroupList();
   renderPeopleList();
+  renderPayrollSettings();
   renderMaterialList();
   renderRecipeList();
   renderClientList();
@@ -3130,6 +3262,73 @@ function renderMaterialList(){
   if(sel){
     sel.innerHTML = state.materials.map(m=>`<option value="${m.id}">${escapeHtml(m.name)} (${escapeHtml(m.unit)})</option>`).join('');
   }
+  const dEl = document.getElementById('matIncomeDate');
+  if(dEl && !dEl.value) dEl.value = todayStr();
+  renderMaterialIncomeHistory();
+}
+
+let matIncomeShowAll = false;
+function renderMaterialIncomeHistory(){
+  const wrap = document.getElementById('matIncomeHistory');
+  if(!wrap) return;
+  const list = state.materialLedger.filter(m=>m.type === 'in')
+    .sort((a,b)=> String(b.date).localeCompare(String(a.date)) || (b.ts||0) - (a.ts||0));
+  const sumEl = document.getElementById('matIncomeSummary');
+  if(list.length === 0){
+    wrap.innerHTML = `<div style="color:var(--text-2); font-size:12.5px; padding:6px 0;">შემოსავალი ჯერ არ არის დამატებული</div>`;
+    if(sumEl) sumEl.textContent = '';
+    return;
+  }
+  const byMat = {};
+  list.forEach(m=>{ byMat[m.materialId] = (byMat[m.materialId]||0) + Number(m.qty); });
+  if(sumEl){
+    sumEl.textContent = 'სულ შემოსული: ' + Object.keys(byMat).map(id=>{
+      const mm = state.materials.find(x=>x.id===id);
+      return prFmt(byMat[id]) + ' ' + (mm ? mm.unit : '');
+    }).join(' · ') + ' (' + list.length + ' ჩანაწერი)';
+  }
+  const LIMIT = 15;
+  const shown = matIncomeShowAll ? list : list.slice(0, LIMIT);
+  wrap.innerHTML = shown.map(m=>{
+    const mat = state.materials.find(x=>x.id===m.materialId);
+    return `
+    <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input type="date" value="${escapeHtml(m.date)}" style="flex:1.3; min-width:0;" onchange="editMaterialIncome('${m.id}','date',this.value)">
+        <input type="number" min="0" step="any" value="${Number(m.qty)}" style="flex:1; min-width:0;" onchange="editMaterialIncome('${m.id}','qty',this.value)">
+        <span style="font-size:12px; color:var(--text-2); flex-shrink:0;">${escapeHtml(mat ? mat.unit : '')}</span>
+        <button class="rm" style="width:34px; height:34px; border-radius:9px; border:none; background:rgba(229,83,77,0.12); color:var(--danger); cursor:pointer; flex-shrink:0;" onclick="removeMaterialIncome('${m.id}')">✕</button>
+      </div>
+      <div style="font-size:11.5px; color:var(--text-2); margin-top:4px;">${escapeHtml(mat ? mat.name : 'უცნობი მასალა')}${m.note ? ' · ' + escapeHtml(m.note) : ''}</div>
+    </div>`;
+  }).join('') + (list.length > LIMIT ? `<button class="btn ghost" style="margin-top:10px;" onclick="matIncomeShowAll=!matIncomeShowAll; renderMaterialIncomeHistory();">${matIncomeShowAll ? 'ნაკლების ჩვენება' : 'ყველას ჩვენება (' + list.length + ')'}</button>` : '');
+}
+
+function editMaterialIncome(id, field, val){
+  const m = state.materialLedger.find(x=>x.id===id);
+  if(!m) return;
+  if(field === 'qty'){
+    const q = parseFloat(val);
+    if(!(q > 0)){ toast('შეიყვანეთ სწორი რაოდენობა'); renderMaterialIncomeHistory(); return; }
+    m.qty = q;
+  } else if(field === 'date'){
+    if(!val){ renderMaterialIncomeHistory(); return; }
+    m.date = val;
+  }
+  saveState();
+  renderMaterialList();
+  toast('შენახულია');
+}
+
+function removeMaterialIncome(id){
+  const m = state.materialLedger.find(x=>x.id===id);
+  if(!m) return;
+  const mat = state.materials.find(x=>x.id===m.materialId);
+  if(!confirm('წავშალოთ შემოსავალი: ' + m.date + ' — ' + prFmt(m.qty) + ' ' + (mat ? mat.unit : '') + '?')) return;
+  state.materialLedger = state.materialLedger.filter(x=>x.id!==id);
+  saveState();
+  renderMaterialList();
+  toast('ჩანაწერი წაშლილია');
 }
 
 function addMaterial(){
@@ -3167,10 +3366,11 @@ function addMaterialIncome(){
   if(!qty || qty <= 0){ toast('შეიყვანეთ სწორი რაოდენობა'); return; }
   state.materialLedger.push({
     id: 'ml_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    materialId, type:'in', qty, date: todayStr(), note,
+    materialId, type:'in', qty, date: (document.getElementById('matIncomeDate').value || todayStr()), note,
     ts: Date.now(), ref: null
   });
   saveState();
+  document.getElementById('matIncomeDate').value = todayStr();
   document.getElementById('matIncomeQty').value = '';
   document.getElementById('matIncomeNote').value = '';
   renderMaterialList();
@@ -3511,6 +3711,7 @@ function connectDatabase(resultEl){
         renderHome();
         if(document.getElementById('view-history').classList.contains('active')) renderHistory();
         if(document.getElementById('view-settings').classList.contains('active')) renderSettings();
+        if(document.getElementById('view-payroll').classList.contains('active')) renderPayroll();
       }
       if(firstSyncResolve){ firstSyncResolve(); firstSyncResolve = null; }
     }, err => {
@@ -3527,6 +3728,508 @@ function connectDatabase(resultEl){
     toast('Firebase-თან დაკავშირება ვერ მოხერხდა');
     if(firstSyncResolve){ firstSyncResolve(); firstSyncResolve = null; }
   }
+}
+
+/* =========================================================
+   PAYROLL — ხელფასები
+   სუფთა თანხები იწერება ადმინში; დარიცხული = სუფთა ÷ (1 − საშემოსავლო).
+   ნამუშევრის თანხა = ცალი × ფასი, თანაბრად ნაწილდება იმ დღეს მონიშნულებზე.
+   ========================================================= */
+const PR_MONTHS_NOM = ['იანვარი','თებერვალი','მარტი','აპრილი','მაისი','ივნისი','ივლისი','აგვისტო','სექტემბერი','ოქტომბერი','ნოემბერი','დეკემბერი'];
+const PR_MONTHS_GEN = ['იანვრის','თებერვლის','მარტის','აპრილის','მაისის','ივნისის','ივლისის','აგვისტოს','სექტემბრის','ოქტომბრის','ნოემბრის','დეკემბრის'];
+const PR_LAST_WORKERS_KEY = 'septiki_last_workers';
+let payrollMonth = null;
+let payrollPending = null;   // snapshot of payroll settings waiting to be written to the server
+let wkSel = [];              // selected workers in the entry form
+let eWkSel = [];             // selected workers in the admin edit modal
+
+function P(){
+  if(!state.payroll || typeof state.payroll !== 'object') state.payroll = {};
+  const p = state.payroll;
+  if(!Array.isArray(p.employees)) p.employees = [];
+  if(!p.rates || typeof p.rates !== 'object'){
+    p.rates = {};
+    state.products.forEach(pr=>{ p.rates[pr.id] = /სეპტიკი/.test(pr.name) ? 50 : 0; });
+  }
+  if(typeof p.taxRate !== 'number') p.taxRate = 0.2;
+  if(!p.closed || typeof p.closed !== 'object') p.closed = {};
+  if(!p.signers || typeof p.signers !== 'object') p.signers = {boss:'რ.დავითაძე', supervisor:'ი.ჩხეიძე'};
+  return p;
+}
+function savePayroll(){
+  payrollPending = JSON.parse(JSON.stringify(P()));
+  saveState();
+}
+function payrollRate(productId){ return Number(P().rates[productId]) || 0; }
+function payrollActiveEmployees(){ return P().employees.filter(e=>e.active !== false); }
+function isMonthClosed(dateStr){ return !!(dateStr && P().closed[String(dateStr).slice(0,7)]); }
+function prFmt(n){
+  n = Number(n) || 0;
+  const r = Math.round(n*100)/100;
+  return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/,'');
+}
+function prShort(name){
+  const parts = String(name||'').trim().split(/\s+/);
+  return parts.length > 1 ? parts[parts.length-1] : (parts[0] || '');
+}
+function prPad(n){ return (n < 10 ? '0' : '') + n; }
+
+/* ---------- core calculation ---------- */
+function computeMonthPayroll(mk){
+  const p = P();
+  const snap = p.closed[mk] || null;
+  const defs = snap ? (snap.employees || []) : p.employees;
+  const taxRate = (snap && typeof snap.taxRate === 'number') ? snap.taxRate : p.taxRate;
+  const earned = {};
+  const dayMap = {};
+  const unassigned = [];
+
+  state.entries.forEach(e=>{
+    if(e.type !== 'production' || !e.date || String(e.date).slice(0,7) !== mk) return;
+    const rate = (e.rate !== undefined && e.rate !== null) ? Number(e.rate) : payrollRate(e.productId);
+    if(!(rate > 0)) return;
+    const ids = Array.isArray(e.workerIds) ? e.workerIds : [];
+    if(ids.length === 0){ unassigned.push(e); return; }
+    const amount = Number(e.qty) * rate;
+    const share = amount / ids.length;
+    const day = dayMap[e.date] || (dayMap[e.date] = {date:e.date, qty:0, amount:0, shares:{}, rates:[]});
+    day.qty += Number(e.qty);
+    day.amount += amount;
+    if(day.rates.indexOf(rate) < 0) day.rates.push(rate);
+    ids.forEach(id=>{
+      day.shares[id] = (day.shares[id] || 0) + share;
+      earned[id] = (earned[id] || 0) + share;
+    });
+  });
+
+  const rows = defs
+    .filter(d => snap ? true : (d.active !== false || (earned[d.id] || 0) > 0))
+    .map(d=>{
+      const salary = Number(d.salary) || 0;
+      const bonus = Number(d.bonus) || 0;
+      const er = earned[d.id] || 0;
+      const net = salary + bonus + er;
+      const gross = taxRate < 1 ? net / (1 - taxRate) : net;
+      return {id:d.id, name:d.name, position:d.position, salary, bonus, earned:er, net, gross, tax: gross - net};
+    });
+
+  const parts = mk.split('-');
+  const dim = new Date(Number(parts[0]), Number(parts[1]), 0).getDate();
+  const days = [];
+  for(let i = 1; i <= dim; i++){
+    const ds = mk + '-' + prPad(i);
+    days.push(dayMap[ds] || {date:ds, qty:0, amount:0, shares:{}, rates:[]});
+  }
+
+  const sum = k => rows.reduce((a,r)=>a + r[k], 0);
+  const totals = {
+    qty: days.reduce((a,x)=>a + x.qty, 0),
+    amount: days.reduce((a,x)=>a + x.amount, 0),
+    salary: sum('salary'), bonus: sum('bonus'), earned: sum('earned'),
+    net: sum('net'), gross: sum('gross'), tax: sum('tax')
+  };
+  return {mk, taxRate, closed: !!snap, rows, days, totals, unassigned,
+          unassignedQty: unassigned.reduce((a,e)=>a + Number(e.qty), 0)};
+}
+
+/* ---------- worker chips (entry form 'f' and admin edit modal 'e') ---------- */
+function wkEmployeesFor(kind){
+  const sel = kind === 'f' ? wkSel : eWkSel;
+  return P().employees.filter(e => e.active !== false || sel.indexOf(e.id) >= 0);
+}
+function wkInitSelection(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(PR_LAST_WORKERS_KEY) || '[]');
+    const ids = payrollActiveEmployees().map(e=>e.id);
+    wkSel = saved.filter(id => ids.indexOf(id) >= 0);
+  }catch(_){ wkSel = []; }
+}
+function wkToggle(kind, id){
+  const arr = kind === 'f' ? wkSel : eWkSel;
+  const i = arr.indexOf(id);
+  if(i >= 0) arr.splice(i,1); else arr.push(id);
+  wkRefresh(kind);
+}
+function wkAll(kind){
+  const emps = wkEmployeesFor(kind);
+  const arr = kind === 'f' ? wkSel : eWkSel;
+  const allOn = emps.every(e => arr.indexOf(e.id) >= 0);
+  arr.length = 0;
+  if(!allOn) emps.forEach(e => arr.push(e.id));
+  wkRefresh(kind);
+}
+function wkRefresh(kind){
+  const isF = kind === 'f';
+  const block = document.getElementById(isF ? 'workersBlock' : 'eWkBlock');
+  if(!block) return;
+  let productId, qty, show, ent = null;
+  if(isF){
+    productId = document.getElementById('fProduct').value;
+    qty = parseInt(document.getElementById('fQty').value) || 0;
+    show = (entryMode === 'production');
+  } else {
+    ent = state.entries.find(x=>x.id === editingEntryId) || null;
+    productId = document.getElementById('eProduct').value;
+    qty = parseInt(document.getElementById('eQty').value) || 0;
+    show = !!ent && ent.type === 'production';
+  }
+  const emps = wkEmployeesFor(kind);
+  let rate = payrollRate(productId);
+  if(ent && ent.productId === productId && Number(ent.rate) > 0) rate = Number(ent.rate);
+  show = show && emps.length > 0 && rate > 0;
+  block.style.display = show ? 'block' : 'none';
+  if(!show) return;
+
+  const sel = isF ? wkSel : eWkSel;
+  const chipsEl = document.getElementById(isF ? 'wkChips' : 'eWkChips');
+  const allOn = emps.every(e => sel.indexOf(e.id) >= 0);
+  chipsEl.innerHTML =
+    `<button type="button" class="chip ${allOn ? 'active' : ''}" onclick="wkAll('${kind}')">ყველა</button>` +
+    emps.map(e=>`<button type="button" class="chip ${sel.indexOf(e.id) >= 0 ? 'active' : ''}" onclick="wkToggle('${kind}','${e.id}')">${escapeHtml(e.name)}</button>`).join('');
+
+  const pv = document.getElementById(isF ? 'wkPreview' : 'eWkPreview');
+  const n = sel.filter(id => emps.some(e=>e.id === id)).length;
+  const total = qty * rate;
+  if(n === 0){
+    pv.textContent = `${qty} × ${prFmt(rate)} = ${prFmt(total)} ₾ — მონიშნეთ ვინ მუშაობდა`;
+  } else {
+    pv.textContent = `${qty} × ${prFmt(rate)} = ${prFmt(total)} ₾ → ${n} კაცი: ${prFmt(total / n)} ₾ თითოეულს`;
+  }
+  const cnt = document.getElementById(isF ? 'wkCount' : 'eWkCount');
+  if(cnt) cnt.textContent = n ? '(' + n + ')' : '';
+}
+
+/* ---------- payroll screen ---------- */
+function shiftPayrollMonth(delta){
+  if(!payrollMonth) payrollMonth = todayStr().slice(0,7);
+  const parts = payrollMonth.split('-');
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1 + delta, 1);
+  payrollMonth = d.getFullYear() + '-' + prPad(d.getMonth() + 1);
+  renderPayroll();
+}
+
+function prRowNo(i){ return i + 1; }
+
+function renderPayroll(){
+  const body = document.getElementById('prBody');
+  if(!body) return;
+  const p = P();
+  if(!payrollMonth) payrollMonth = todayStr().slice(0,7);
+  const mp = payrollMonth.split('-');
+  const y = Number(mp[0]), m = Number(mp[1]);
+  document.getElementById('prMonthLabel').textContent = PR_MONTHS_NOM[m-1] + ' ' + y;
+  const d = computeMonthPayroll(payrollMonth);
+  document.getElementById('prClosedBadge').innerHTML = d.closed
+    ? '<span class="badge on">🔒 დახურულია</span>'
+    : '<span class="badge" style="background:rgba(139,160,187,.15); color:var(--text-2);">ღიაა</span>';
+
+  if(d.rows.length === 0){
+    body.innerHTML = `<div class="card"><div class="empty"><div class="big">💰</div>თანამშრომლები ჯერ არ არის დამატებული.<br>ადმინმა დაამატოს: პარამეტრები → ხელფასები.</div></div>`;
+    return;
+  }
+
+  const full = currentRole !== 'production';
+  const taxPct = prFmt(d.taxRate * 100);
+  const isAdmin = currentRole === 'admin';
+  let html = '';
+
+  /* ----- everyone: net table (what each person gets) ----- */
+  const simpleRows = d.rows.map((r,i)=>`
+    <tr>
+      <td class="l">${prRowNo(i)}</td>
+      <td class="l">${escapeHtml(r.name)}</td>
+      <td>${prFmt(r.salary)}</td>
+      <td>${prFmt(r.bonus)}</td>
+      <td>${prFmt(r.earned)}</td>
+      <td class="strong">${prFmt(r.net)}</td>
+    </tr>`).join('');
+  const simpleTable = `
+    <div class="pr-wrap"><table class="pr">
+      <thead><tr><th class="l">№</th><th class="l">გვარი, სახელი</th><th>ხელფასი</th><th>პრემია</th><th>გამომუშავებული</th><th>ჯამი (ხელზე)</th></tr></thead>
+      <tbody>${simpleRows}
+        <tr class="tot"><td class="l" colspan="2">ჯამი</td><td>${prFmt(d.totals.salary)}</td><td>${prFmt(d.totals.bonus)}</td><td>${prFmt(d.totals.earned)}</td><td>${prFmt(d.totals.net)}</td></tr>
+      </tbody>
+    </table></div>`;
+
+  if(!full){
+    html += `
+      <div class="stat-row" style="margin-bottom:12px;">
+        <div class="stat"><div class="lbl">ამ თვეში (ცალი)</div><div class="val prod">${prFmt(d.totals.qty)}</div></div>
+        <div class="stat"><div class="lbl">გამომუშავების ფონდი</div><div class="val">${prFmt(d.totals.amount)} ₾</div></div>
+      </div>
+      <div class="card">
+        <div class="pr-title">სუფთა ხელფასი — დარიცხვების გარეშე</div>
+        ${simpleTable}
+        <div class="pr-note">გამომუშავებული = სეპტიკების ანაზღაურება, რომელიც დღეების მიხედვით თანაბრად ნაწილდება იმ დღეს მომუშავეებზე.</div>
+      </div>`;
+    body.innerHTML = html;
+    return;
+  }
+
+  /* ----- accountant / director / admin: full sheet ----- */
+  const title = `${y} წლის ${PR_MONTHS_GEN[m-1]} თვის ტაბელი (სეპტიკების დამზადება)`;
+
+  html += `
+    <div class="stat-row no-print" style="margin-bottom:12px;">
+      <div class="stat"><div class="lbl">ცალი</div><div class="val prod">${prFmt(d.totals.qty)}</div></div>
+      <div class="stat"><div class="lbl">ხელზე ასაღები</div><div class="val">${prFmt(d.totals.net)}</div></div>
+      <div class="stat"><div class="lbl">დარიცხული</div><div class="val disp">${prFmt(d.totals.gross)}</div></div>
+    </div>`;
+
+  if(d.unassigned.length > 0){
+    const dates = d.unassigned.map(e=>String(e.date).slice(8,10) + '.' + String(e.date).slice(5,7)).join(', ');
+    html += `<div class="pr-warn no-print">⚠ ${d.unassigned.length} ჩანაწერს (${prFmt(d.unassignedQty)} ცალი) არ აქვს მონიშნული მომუშავეები და ხელფასში არ ითვლება: ${dates}.${isAdmin ? ' ისტორიაში ✎-ით მონიშნეთ ვინ მუშაობდა.' : ''}</div>`;
+  }
+
+  html += `
+    <div class="btn-row no-print" style="margin-bottom:12px;">
+      <button class="btn ghost" onclick="window.print()">🖨 ბეჭდვა</button>
+      <button class="btn ghost" onclick="exportPayrollExcel()">📥 Excel</button>
+      ${isAdmin ? `<button class="btn ghost" onclick="togglePayrollMonthClosed()">${d.closed ? '🔓 თვის გახსნა' : '🔒 თვის დახურვა'}</button>` : ''}
+    </div>`;
+
+  const statementRows = d.rows.map((r,i)=>{
+    const k = 1 / (1 - d.taxRate);
+    return `
+    <tr>
+      <td class="l">${prRowNo(i)}</td>
+      <td class="l">${escapeHtml(r.name)}</td>
+      <td class="l">${r.position === 'boss' ? 'უფროსი' : 'მუშა'}</td>
+      <td>${prFmt(r.salary * k)}</td>
+      <td>${prFmt(r.bonus * k)}</td>
+      <td>${prFmt(r.earned * k)}</td>
+      <td>${prFmt(r.gross)}</td>
+      <td>${prFmt(r.tax)}</td>
+      <td class="strong">${prFmt(r.net)}</td>
+      <td class="l" style="min-width:110px;"></td>
+    </tr>`;
+  }).join('');
+  const k0 = 1 / (1 - d.taxRate);
+
+  html += `
+    <div class="card" id="prPrintStatement">
+      <div class="pr-title">${escapeHtml(title)}</div>
+      <div class="pr-wrap"><table class="pr">
+        <thead><tr>
+          <th class="l">№</th><th class="l">გვარი, სახელი</th><th class="l">თანამდებობა</th>
+          <th>სარგო (დარიცხ.)</th><th>პრემია (დარიცხ.)</th><th>ნამუშევარი (დარიცხ.)</th>
+          <th>დარიცხული ჯამი</th><th>საშემოსავლო ${taxPct}%</th><th>ხელზე ასაღები</th><th class="l">ხელმოწერა</th>
+        </tr></thead>
+        <tbody>${statementRows}
+          <tr class="tot"><td class="l" colspan="3">ჯამი</td>
+            <td>${prFmt(d.totals.salary * k0)}</td><td>${prFmt(d.totals.bonus * k0)}</td><td>${prFmt(d.totals.earned * k0)}</td>
+            <td>${prFmt(d.totals.gross)}</td><td>${prFmt(d.totals.tax)}</td><td>${prFmt(d.totals.net)}</td><td></td></tr>
+        </tbody>
+      </table></div>
+      <div class="pr-sign">
+        <div>წარმოების უფროსი: ____________________ ${escapeHtml(p.signers.boss || '')}</div>
+        <div>ზედამხედველი: ____________________ ${escapeHtml(p.signers.supervisor || '')}</div>
+      </div>
+    </div>`;
+
+  /* daily distribution */
+  const head = d.rows.map(r=>`<th title="${escapeHtml(r.name)}">${escapeHtml(prShort(r.name))}</th>`).join('');
+  const dayRows = d.days.map(day=>{
+    const has = day.qty > 0;
+    const dd = day.date.slice(8,10) + '.' + day.date.slice(5,7) + '.' + day.date.slice(0,4);
+    const rateTxt = has ? (day.rates.length === 1 ? prFmt(day.rates[0]) : 'სხვადასხვა') : '';
+    const cells = d.rows.map(r=>`<td>${day.shares[r.id] ? prFmt(day.shares[r.id]) : ''}</td>`).join('');
+    return `<tr class="${has ? '' : 'muted'}"><td class="l">${dd}</td><td>${has ? prFmt(day.qty) : ''}</td><td>${rateTxt}</td><td>${has ? prFmt(day.amount) : ''}</td>${cells}</tr>`;
+  }).join('');
+  const totCells = d.rows.map(r=>`<td>${prFmt(r.earned)}</td>`).join('');
+
+  html += `
+    <div class="card pr-break" id="prPrintDaily">
+      <div class="pr-title">${escapeHtml(title)} — ჩაშლილი გადანაწილება</div>
+      <div class="pr-wrap"><table class="pr">
+        <thead><tr><th class="l">თარიღი</th><th>რაოდ.</th><th>ერთ. ფასი</th><th>ჯამი</th>${head}</tr></thead>
+        <tbody>${dayRows}
+          <tr class="tot"><td class="l">ჯამი</td><td>${prFmt(d.totals.qty)}</td><td></td><td>${prFmt(d.totals.amount)}</td>${totCells}</tr>
+        </tbody>
+      </table></div>
+      <div class="pr-sign">
+        <div>წარმოების უფროსი: ____________________ ${escapeHtml(p.signers.boss || '')}</div>
+        <div>ზედამხედველი: ____________________ ${escapeHtml(p.signers.supervisor || '')}</div>
+      </div>
+    </div>`;
+
+  html += `
+    <div class="card no-print" style="margin-top:12px;">
+      <div class="pr-title">სუფთა ხელფასი — დარიცხვების გარეშე</div>
+      ${simpleTable}
+    </div>`;
+
+  body.innerHTML = html;
+}
+
+function togglePayrollMonthClosed(){
+  if(currentRole !== 'admin') return;
+  const p = P();
+  const mk = payrollMonth;
+  if(p.closed[mk]){
+    if(!confirm('გავხსნათ ეს თვე? შემდეგ ჩანაწერების შეცვლა და ფასების ცვლილება ისევ აისახება ამ თვეზე.')) return;
+    delete p.closed[mk];
+  } else {
+    if(!confirm('დავხუროთ ეს თვე? ხელფასები და პრემიები ამ თვისთვის დაფიქსირდება, წარმოების ჩანაწერებს კი ამ თვეში ვეღარავინ შეცვლის.')) return;
+    const d = computeMonthPayroll(mk);
+    p.closed[mk] = {
+      closedAt: Date.now(),
+      taxRate: p.taxRate,
+      employees: d.rows.map(r=>({id:r.id, name:r.name, position:r.position, salary:r.salary, bonus:r.bonus, active:true}))
+    };
+  }
+  savePayroll();
+  renderPayroll();
+  toast(p.closed[mk] ? '🔒 თვე დახურულია' : '🔓 თვე გახსნილია');
+}
+
+function exportPayrollExcel(){
+  if(typeof XLSX === 'undefined'){
+    toast('Excel-ის მოდული ვერ ჩაიტვირთა — შეამოწმეთ ინტერნეტი');
+    return;
+  }
+  const d = computeMonthPayroll(payrollMonth);
+  if(d.rows.length === 0){ toast('თანამშრომლები არ არის'); return; }
+  const mp = payrollMonth.split('-');
+  const y = Number(mp[0]), m = Number(mp[1]);
+  const title = `${y} წლის ${PR_MONTHS_GEN[m-1]} თვის ტაბელი (სეპტიკების დამზადება)`;
+  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const k = 1 / (1 - d.taxRate);
+  const taxPct = prFmt(d.taxRate * 100) + '%';
+
+  const aoa1 = [[title], [],
+    ['№','გვარი, სახელი','თანამდებობა','სარგო (დარიცხ.)','პრემია (დარიცხ.)','ნამუშევარი (დარიცხ.)','დარიცხული ჯამი','საშემოსავლო ' + taxPct,'ხელზე ასაღები']];
+  d.rows.forEach((r,i)=>{
+    aoa1.push([i+1, r.name, r.position === 'boss' ? 'უფროსი' : 'მუშა', r2(r.salary*k), r2(r.bonus*k), r2(r.earned*k), r2(r.gross), r2(r.tax), r2(r.net)]);
+  });
+  aoa1.push(['ჯამი','','', r2(d.totals.salary*k), r2(d.totals.bonus*k), r2(d.totals.earned*k), r2(d.totals.gross), r2(d.totals.tax), r2(d.totals.net)]);
+  aoa1.push([]);
+  aoa1.push(['წარმოების უფროსი: ' + (P().signers.boss || '')]);
+  aoa1.push(['ზედამხედველი: ' + (P().signers.supervisor || '')]);
+
+  const aoa2 = [[title + ' — ჩაშლილი გადანაწილება'], [],
+    ['თარიღი','რაოდ.','ერთ. ფასი','ჯამი'].concat(d.rows.map(r=>r.name))];
+  d.days.forEach(day=>{
+    const has = day.qty > 0;
+    aoa2.push([
+      day.date.slice(8,10) + '.' + day.date.slice(5,7) + '.' + day.date.slice(0,4),
+      has ? day.qty : '', has && day.rates.length === 1 ? day.rates[0] : '', has ? r2(day.amount) : ''
+    ].concat(d.rows.map(r=>day.shares[r.id] ? r2(day.shares[r.id]) : '')));
+  });
+  aoa2.push(['ჯამი', d.totals.qty, '', r2(d.totals.amount)].concat(d.rows.map(r=>r2(r.earned))));
+
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+  ws1['!cols'] = [{wch:5},{wch:22},{wch:13},{wch:15},{wch:15},{wch:18},{wch:16},{wch:16},{wch:15}];
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!cols'] = [{wch:12},{wch:8},{wch:10},{wch:10}].concat(d.rows.map(()=>({wch:12})));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws1, 'ხელფასების ჯამი');
+  XLSX.utils.book_append_sheet(wb, ws2, 'ჩაშლილი ხელფასები');
+  XLSX.writeFile(wb, 'xelfasebi-' + payrollMonth + '.xlsx');
+  toast('✓ Excel ფაილი ჩამოტვირთულია');
+}
+
+/* ---------- admin settings ---------- */
+function renderPayrollSettings(){
+  const rl = document.getElementById('prRateList');
+  if(!rl) return;
+  const p = P();
+  rl.innerHTML = state.products.map(pr=>`
+    <div class="prod-row">
+      <div class="swatch" style="background:${pr.color}"></div>
+      <div style="flex:1; font-size:13px;">${escapeHtml(pr.name)}</div>
+      <input type="number" min="0" step="0.01" style="flex:none; width:90px;" value="${payrollRate(pr.id)}" onchange="setPayrollRate('${pr.id}', this.value)">
+      <span style="color:var(--text-2); font-size:13px;">₾</span>
+    </div>`).join('');
+  document.getElementById('prTax').value = prFmt(p.taxRate * 100);
+  document.getElementById('prSignBoss').value = p.signers.boss || '';
+  document.getElementById('prSignSup').value = p.signers.supervisor || '';
+
+  const el = document.getElementById('prEmpList');
+  if(p.employees.length === 0){
+    el.innerHTML = `<div style="color:var(--text-2); font-size:12.5px; padding:6px 0;">თანამშრომლები ჯერ არ არის დამატებული</div>
+      <button class="btn ghost" style="margin-top:8px;" onclick="seedPayrollEmployees()">სექტემბრის ცხრილის 7 თანამშრომლის დამატება</button>`;
+    return;
+  }
+  el.innerHTML = p.employees.map(e=>`
+    <div class="pr-emp">
+      <div class="r1">
+        <input type="text" value="${escapeHtml(e.name)}" onchange="updatePayrollEmployee('${e.id}','name',this.value)">
+        <button class="rm" style="width:34px; height:34px; border-radius:9px; border:none; background:rgba(229,83,77,0.12); color:var(--danger); cursor:pointer;" onclick="removePayrollEmployee('${e.id}')">✕</button>
+      </div>
+      <div class="r2">
+        <div><div class="mini">თანამდებობა</div>
+          <select onchange="updatePayrollEmployee('${e.id}','position',this.value)">
+            <option value="worker" ${e.position !== 'boss' ? 'selected' : ''}>მუშა</option>
+            <option value="boss" ${e.position === 'boss' ? 'selected' : ''}>უფროსი</option>
+          </select></div>
+        <div><div class="mini">ხელფასი (სუფთა)</div><input type="number" min="0" step="0.01" value="${Number(e.salary) || 0}" onchange="updatePayrollEmployee('${e.id}','salary',this.value)"></div>
+        <div><div class="mini">პრემია</div><input type="number" min="0" step="0.01" value="${Number(e.bonus) || 0}" onchange="updatePayrollEmployee('${e.id}','bonus',this.value)"></div>
+      </div>
+      <label style="display:flex; align-items:center; gap:8px; margin-top:8px; font-size:12.5px; color:var(--text-1);">
+        <input type="checkbox" ${e.active !== false ? 'checked' : ''} onchange="updatePayrollEmployee('${e.id}','active',this.checked)"> აქტიურია (გამოჩნდეს წარმოებაში მონიშვნისას)
+      </label>
+    </div>`).join('');
+}
+
+function setPayrollRate(productId, val){
+  const v = Math.max(0, parseFloat(val) || 0);
+  P().rates[productId] = v;
+  savePayroll();
+  toast('ფასი შენახულია');
+}
+function setPayrollTax(val){
+  const v = parseFloat(val);
+  if(!(v >= 0 && v < 60)){ toast('შეიყვანეთ სწორი პროცენტი'); renderPayrollSettings(); return; }
+  P().taxRate = v / 100;
+  savePayroll();
+  toast('შენახულია');
+}
+function setPayrollSigner(which, val){
+  P().signers[which] = val.trim();
+  savePayroll();
+}
+function addPayrollEmployee(){
+  const name = prompt('თანამშრომლის გვარი და სახელი:');
+  if(!name || !name.trim()) return;
+  P().employees.push({id:'emp_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), name: name.trim(), position:'worker', salary:0, bonus:0, active:true});
+  savePayroll();
+  renderPayrollSettings();
+  toast('თანამშრომელი დამატებულია');
+}
+function updatePayrollEmployee(id, field, val){
+  const e = P().employees.find(x=>x.id === id);
+  if(!e) return;
+  if(field === 'name'){ e.name = String(val).trim() || e.name; }
+  else if(field === 'position'){ e.position = val; }
+  else if(field === 'salary' || field === 'bonus'){ e[field] = Math.max(0, parseFloat(val) || 0); }
+  else if(field === 'active'){ e.active = !!val; }
+  savePayroll();
+  toast('შენახულია');
+}
+function removePayrollEmployee(id){
+  const used = state.entries.some(e => Array.isArray(e.workerIds) && e.workerIds.indexOf(id) >= 0);
+  if(used){ toast('ჩანაწერებშია გამოყენებული — გამორთეთ „აქტიურია"'); return; }
+  if(!confirm('წავშალოთ თანამშრომელი?')) return;
+  const p = P();
+  p.employees = p.employees.filter(x=>x.id !== id);
+  savePayroll();
+  renderPayrollSettings();
+}
+function seedPayrollEmployees(){
+  const mk = (name, pos, salary, bonus) => ({id:'emp_' + Date.now() + '_' + Math.random().toString(36).slice(2,6), name, position:pos, salary, bonus, active:true});
+  P().employees = [
+    mk('ჩხეიძე ირაკლი', 'boss', 1300, 0),
+    mk('ნაკაშიძე ლუკა', 'worker', 1000, 330),
+    mk('ნაკაშიძე ნიკა', 'worker', 1000, 330),
+    mk('ნაკაშიძე ნუგზარ', 'worker', 1000, 330),
+    mk('ქობულაძე გიორგი', 'worker', 1000, 330),
+    mk('ქობულაძე გელა', 'worker', 1000, 330),
+    mk('მამულაძე რუსლან', 'worker', 1000, 330)
+  ];
+  savePayroll();
+  renderPayrollSettings();
+  toast('თანამშრომლები დამატებულია');
 }
 
 /* =========================================================
@@ -3595,6 +4298,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderHome();
             if(document.getElementById('view-history').classList.contains('active')) renderHistory();
             if(document.getElementById('view-settings').classList.contains('active')) renderSettings();
+            if(document.getElementById('view-payroll').classList.contains('active')) renderPayroll();
           }
         }).catch(e => console.error('refresh-on-focus failed', e));
       } else {
